@@ -4,13 +4,13 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
 load_dotenv()
 
-# Configuração da página
+# ------------------- CONFIGURAÇÃO DA PÁGINA -------------------
 st.set_page_config(
     page_title="Assistente Financeiro IA",
     page_icon="💰",
@@ -28,7 +28,7 @@ if not openai.api_key:
 def calcular_juros_compostos(valor_inicial, taxa_mensal, meses):
     """Calcula montante e juros compostos"""
     if taxa_mensal < 0 or meses < 0:
-        return None
+        return None, None
     montante = valor_inicial * (1 + taxa_mensal / 100) ** meses
     juros = montante - valor_inicial
     return montante, juros
@@ -100,15 +100,12 @@ def chat_completion(messages):
     except Exception as e:
         return f"❌ Erro na API: {str(e)}"
 
-# ------------------- INICIALIZAÇÃO DE ESTADO -------------------
+# ------------------- INICIALIZAÇÃO DO SESSION_STATE -------------------
 if "messages" not in st.session_state:
     st.session_state.messages = [{
         "role": "assistant",
         "content": "Olá! Sou seu assistente financeiro IA. 💰\n\nPosso ajudar com:\n• Dúvidas sobre produtos bancários\n• Simulações de investimentos\n• Cálculo de empréstimos e parcelas\n• Educação financeira\n• Comparação de investimentos\n\nComo posso te ajudar hoje?"
     }]
-
-if "conversation_id" not in st.session_state:
-    st.session_state.conversation_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
 # ------------------- SIDEBAR -------------------
 with st.sidebar:
@@ -116,20 +113,17 @@ with st.sidebar:
     st.title("💰 Assistente Financeiro")
     st.markdown("---")
     
-    # Informações do usuário
     st.markdown("### 📌 Sobre")
     st.info("Este assistente usa IA generativa para responder perguntas sobre finanças e realizar cálculos. Lembre-se: as informações são apenas educativas.")
     
     st.markdown("---")
     st.markdown("### 🛠️ Configurações")
     
-    # Exibir status da API
     if openai.api_key:
         st.success("✅ API conectada")
     else:
         st.error("❌ API não configurada")
     
-    # Botão limpar conversa
     if st.button("🗑️ Limpar conversa", use_container_width=True):
         st.session_state.messages = [{
             "role": "assistant",
@@ -140,15 +134,15 @@ with st.sidebar:
     st.markdown("---")
     st.caption("⚠️ Este assistente não oferece conselhos financeiros profissionais. Consulte um especialista antes de tomar decisões.")
 
-# ------------------- MAIN PAGE (TABS) -------------------
+# ------------------- ABAS PRINCIPAIS -------------------
 tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat Inteligente", "📊 Calculadoras", "📚 Conhecimento", "📈 Comparador de Investimentos"])
 
-# ------------------- TAB 1: CHAT -------------------
+# ==================== ABA 1: CHAT ====================
 with tab1:
     st.header("💬 Assistente Financeiro")
     st.markdown("Faça perguntas sobre finanças, investimentos, ou peça simulações.")
     
-    # Container para mensagens
+    # Container para exibir mensagens
     chat_container = st.container()
     with chat_container:
         for msg in st.session_state.messages:
@@ -156,61 +150,52 @@ with tab1:
                 st.chat_message("user").write(msg["content"])
             else:
                 st.chat_message("assistant").write(msg["content"])
+
+# ==================== CHAT INPUT (FORA DAS ABAS) ====================
+prompt = st.chat_input("Digite sua pergunta...")
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
     
-    # Entrada de texto
-    if prompt := st.chat_input("Digite sua pergunta..."):
-        # Adiciona mensagem do usuário
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with chat_container:
-            st.chat_message("user").write(prompt)
-        
-        # Prepara histórico (últimas 10 mensagens para contexto)
-        history = st.session_state.messages[-10:]
-        # Ajusta para formato da API
-        messages = [{"role": m["role"], "content": m["content"]} for m in history]
-        
-        # Adiciona contexto de sistema
-        system_message = {
-            "role": "system",
-            "content": """Você é um assistente financeiro especializado. Siga as diretrizes:
+    history = st.session_state.messages[-10:]
+    messages = [{"role": m["role"], "content": m["content"]} for m in history]
+    
+    system_message = {
+        "role": "system",
+        "content": """Você é um assistente financeiro especializado. Siga as diretrizes:
 - Responda de forma clara, didática e amigável.
 - Sempre mencione que não é um conselho financeiro profissional.
 - Para cálculos, use exemplos práticos.
 - Se o usuário pedir simulações, indique que pode usar as calculadoras na aba 'Calculadoras'.
 - Seja conciso e objetivo, mas completo.
 - Nunca forneça informações falsas ou enganosas."""
-        }
-        messages.insert(0, system_message)
-        
-        with st.spinner("Gerando resposta..."):
-            resposta = chat_completion(messages)
-        
-        # Adiciona resposta
-        st.session_state.messages.append({"role": "assistant", "content": resposta})
-        with chat_container:
-            st.chat_message("assistant").write(resposta)
-        
-        st.rerun()
+    }
+    messages.insert(0, system_message)
+    
+    with st.spinner("Gerando resposta..."):
+        resposta = chat_completion(messages)
+    
+    st.session_state.messages.append({"role": "assistant", "content": resposta})
+    st.rerun()
 
-# ------------------- TAB 2: CALCULADORAS -------------------
+# ==================== ABA 2: CALCULADORAS ====================
 with tab2:
     st.header("📊 Calculadoras Financeiras")
     
-    # Opção de calculadora
     calc_type = st.selectbox(
         "Escolha a calculadora",
-        ["Juros Compostos", "Parcelamento Price", "Parcelamento SAC", "Meta de Investimento"]
+        ["Juros Compostos", "Parcelamento Price", "Parcelamento SAC", "Meta de Investimento"],
+        key="calc_type_selector"
     )
     
     if calc_type == "Juros Compostos":
         st.subheader("📈 Calculadora de Juros Compostos")
         col1, col2, col3 = st.columns(3)
         with col1:
-            valor = st.number_input("Valor inicial (R$)", min_value=0.0, value=1000.0, step=100.0)
+            valor = st.number_input("Valor inicial (R$)", min_value=0.0, value=1000.0, step=100.0, key="juros_valor")
         with col2:
-            taxa = st.number_input("Taxa mensal (%)", min_value=0.0, value=1.0, step=0.1)
+            taxa = st.number_input("Taxa mensal (%)", min_value=0.0, value=1.0, step=0.1, key="juros_taxa")
         with col3:
-            meses = st.number_input("Período (meses)", min_value=1, value=12, step=1)
+            meses = st.number_input("Período (meses)", min_value=1, value=12, step=1, key="juros_meses")
         
         if st.button("Calcular", key="btn_compostos"):
             montante, juros = calcular_juros_compostos(valor, taxa, meses)
@@ -225,15 +210,14 @@ with tab2:
                 meses_list = list(range(1, meses+1))
                 montantes = [calcular_juros_compostos(valor, taxa, m)[0] for m in meses_list]
                 fig, ax = plt.subplots()
-                ax.plot(meses_list, montantes, marker='o')
+                ax.plot(meses_list, montantes, marker='o', linestyle='-', color='green')
                 ax.set_title("Crescimento do Investimento")
                 ax.set_xlabel("Meses")
                 ax.set_ylabel("Montante (R$)")
                 ax.grid(True)
                 st.pyplot(fig)
                 
-                # Adicionar ao chat?
-                if st.button("Enviar resultado para o chat"):
+                if st.button("Enviar resultado para o chat", key="send_juros"):
                     st.session_state.messages.append({
                         "role": "assistant",
                         "content": f"📈 **Simulação de juros compostos:** Com R$ {valor:,.2f} a {taxa}% a.m. por {meses} meses, você teria R$ {montante:,.2f} (rendimento R$ {juros:,.2f})."
@@ -244,20 +228,19 @@ with tab2:
         st.subheader("💳 Simulação de Parcelamento (Price)")
         col1, col2, col3 = st.columns(3)
         with col1:
-            valor = st.number_input("Valor da compra (R$)", min_value=0.0, value=1000.0, step=100.0)
+            valor = st.number_input("Valor da compra (R$)", min_value=0.0, value=1000.0, step=100.0, key="price_valor")
         with col2:
-            taxa_anual = st.number_input("Taxa de juros anual (%)", min_value=0.0, value=12.0, step=1.0)
+            taxa_anual = st.number_input("Taxa de juros anual (%)", min_value=0.0, value=12.0, step=1.0, key="price_taxa")
         with col3:
-            parcelas = st.number_input("Número de parcelas", min_value=1, value=6, step=1)
+            parcelas = st.number_input("Número de parcelas", min_value=1, value=6, step=1, key="price_parcelas")
         
-        if st.button("Calcular Price"):
+        if st.button("Calcular Price", key="btn_price"):
             parcela = calcular_parcela_price(valor, taxa_anual, parcelas)
             total = parcela * parcelas
             st.success(f"**Parcela fixa:** R$ {parcela:,.2f}")
             st.success(f"**Total pago:** R$ {total:,.2f}")
             st.success(f"**Juros totais:** R$ {total - valor:,.2f}")
             
-            # Tabela de amortização
             df = gerar_tabela_price(valor, taxa_anual, parcelas)
             st.dataframe(df.style.format({"Parcela": "R$ {:.2f}", "Juros": "R$ {:.2f}", "Amortização": "R$ {:.2f}", "Saldo": "R$ {:.2f}"}))
     
@@ -265,16 +248,15 @@ with tab2:
         st.subheader("🏦 Simulação de Parcelamento (SAC)")
         col1, col2, col3 = st.columns(3)
         with col1:
-            valor = st.number_input("Valor do empréstimo (R$)", min_value=0.0, value=100000.0, step=10000.0)
+            valor = st.number_input("Valor do empréstimo (R$)", min_value=0.0, value=100000.0, step=10000.0, key="sac_valor")
         with col2:
-            taxa_anual = st.number_input("Taxa de juros anual (%)", min_value=0.0, value=10.0, step=0.5)
+            taxa_anual = st.number_input("Taxa de juros anual (%)", min_value=0.0, value=10.0, step=0.5, key="sac_taxa")
         with col3:
-            parcelas = st.number_input("Número de parcelas", min_value=1, value=120, step=12)
+            parcelas = st.number_input("Número de parcelas", min_value=1, value=120, step=12, key="sac_parcelas")
         
-        if st.button("Calcular SAC"):
+        if st.button("Calcular SAC", key="btn_sac"):
             df = gerar_tabela_sac(valor, taxa_anual, parcelas)
             st.dataframe(df.style.format({"Parcela": "R$ {:.2f}", "Juros": "R$ {:.2f}", "Amortização": "R$ {:.2f}", "Saldo": "R$ {:.2f}"}))
-            # Resumo
             total_juros = df["Juros"].sum()
             total_pago = valor + total_juros
             st.info(f"**Total de juros:** R$ {total_juros:,.2f}")
@@ -284,19 +266,15 @@ with tab2:
         st.subheader("🎯 Quanto preciso investir por mês para atingir minha meta?")
         col1, col2, col3 = st.columns(3)
         with col1:
-            meta = st.number_input("Meta (R$)", min_value=0.0, value=50000.0, step=1000.0)
+            meta = st.number_input("Meta (R$)", min_value=0.0, value=50000.0, step=1000.0, key="meta_valor")
         with col2:
-            taxa_anual_meta = st.number_input("Taxa de retorno anual (%)", min_value=0.0, value=12.0, step=0.5)
+            taxa_anual_meta = st.number_input("Taxa de retorno anual (%)", min_value=0.0, value=12.0, step=0.5, key="meta_taxa")
         with col3:
-            anos = st.number_input("Período (anos)", min_value=1, value=5, step=1)
+            anos = st.number_input("Período (anos)", min_value=1, value=5, step=1, key="meta_anos")
         
-        if st.button("Calcular aporte mensal"):
-            # Converter taxa anual para mensal
+        if st.button("Calcular aporte mensal", key="btn_meta"):
             taxa_mensal = (1 + taxa_anual_meta / 100) ** (1/12) - 1
             meses = anos * 12
-            # Fórmula do valor futuro de uma série de pagamentos:
-            # FV = PMT * ((1 + i)^n - 1) / i
-            # PMT = FV * i / ((1 + i)^n - 1)
             if taxa_mensal == 0:
                 aporte = meta / meses
             else:
@@ -304,12 +282,12 @@ with tab2:
             st.success(f"**Aporte mensal necessário:** R$ {aporte:,.2f}")
             st.info(f"Total investido: R$ {aporte * meses:,.2f} | Rendimento esperado: R$ {meta - aporte * meses:,.2f}")
 
-# ------------------- TAB 3: CONHECIMENTO -------------------
+# ==================== ABA 3: CONHECIMENTO ====================
 with tab3:
     st.header("📚 Conhecimento Financeiro")
     st.markdown("Aprenda os conceitos básicos com a ajuda da IA. Pergunte sobre qualquer tema!")
     
-    tema = st.text_input("Sobre o que você quer aprender? (ex: CDB, Tesouro Direto, Ações)")
+    tema = st.text_input("Sobre o que você quer aprender? (ex: CDB, Tesouro Direto, Ações)", key="tema_input")
     if st.button("Explicar", key="btn_knowledge"):
         if tema.strip():
             with st.spinner("Gerando explicação..."):
@@ -322,7 +300,7 @@ with tab3:
         else:
             st.warning("Digite um tema.")
 
-# ------------------- TAB 4: COMPARADOR DE INVESTIMENTOS -------------------
+# ==================== ABA 4: COMPARADOR DE INVESTIMENTOS ====================
 with tab4:
     st.header("📈 Comparador de Investimentos")
     st.markdown("Compare o rendimento de diferentes opções de investimento.")
@@ -330,18 +308,19 @@ with tab4:
     investimentos = st.multiselect(
         "Escolha até 3 investimentos para comparar",
         ["Poupança", "CDB 100% CDI", "Tesouro Selic", "Tesouro IPCA+", "Fundos DI", "Ações (Ibovespa)"],
-        default=["Poupança", "CDB 100% CDI", "Tesouro Selic"]
+        default=["Poupança", "CDB 100% CDI", "Tesouro Selic"],
+        key="invest_select"
     )
     
     col1, col2 = st.columns(2)
     with col1:
-        valor_inicial_comp = st.number_input("Valor inicial (R$)", min_value=0.0, value=1000.0, step=100.0)
+        valor_inicial_comp = st.number_input("Valor inicial (R$)", min_value=0.0, value=1000.0, step=100.0, key="comp_valor")
     with col2:
-        prazo_meses = st.number_input("Prazo (meses)", min_value=1, value=12, step=1)
+        prazo_meses = st.number_input("Prazo (meses)", min_value=1, value=12, step=1, key="comp_prazo")
     
     # Taxas aproximadas (exemplo)
     taxas = {
-        "Poupança": 0.5,  # ao mês
+        "Poupança": 0.5,
         "CDB 100% CDI": 1.0,
         "Tesouro Selic": 1.0,
         "Tesouro IPCA+": 0.8,
@@ -353,23 +332,21 @@ with tab4:
         resultados = []
         for inv in investimentos:
             taxa = taxas.get(inv, 0.5)
-            montante, juros = calcular_juros_compostos(valor_inicial_comp, taxa, prazo_meses)
+            montante, _ = calcular_juros_compostos(valor_inicial_comp, taxa, prazo_meses)
             resultados.append({
                 "Investimento": inv,
                 "Taxa mensal (%)": taxa,
-                "Montante final (R$)": montante,
-                "Rendimento (R$)": juros
+                "Montante final (R$)": montante
             })
         df_resultados = pd.DataFrame(resultados)
-        st.dataframe(df_resultados.style.format({"Montante final (R$)": "R$ {:.2f}", "Rendimento (R$)": "R$ {:.2f}"}))
+        st.dataframe(df_resultados.style.format({"Montante final (R$)": "R$ {:.2f}"}))
         
-        # Gráfico
         fig, ax = plt.subplots()
-        ax.bar(df_resultados["Investimento"], df_resultados["Montante final (R$)"], color=['gold', 'blue', 'green'])
+        ax.bar(df_resultados["Investimento"], df_resultados["Montante final (R$)"], color=['gold', 'blue', 'green', 'orange', 'purple', 'red'])
         ax.set_title("Comparação de Investimentos")
         ax.set_ylabel("Montante final (R$)")
         st.pyplot(fig)
 
-# ------------------- FOOTER -------------------
+# ------------------- RODAPÉ -------------------
 st.markdown("---")
 st.caption("Assistente Financeiro IA | Desenvolvido com Streamlit e OpenAI | Última atualização: Março/2025")
